@@ -6,7 +6,7 @@
 
 # Train regression models for disease severity prediction
 # Test performance on FPWW022
-# Perform recurisve feature elimination with rf as base learner
+# Perform recurisve feature elimination with rf and cubist as base learner
 
 #====================================================================================== -
 
@@ -80,7 +80,6 @@ ctrl <- caret::trainControl(method = "repeatedcv",
 
 maxcomp = 15
 
-#random forest
 plsr <- caret::train(sev ~ .,
                      data = data,
                      preProcess = c("center", "scale"),
@@ -95,17 +94,17 @@ saveRDS(plsr, "O:/Projects/KP0011/3/Analysis/regression/Models_dyn/plsr_limctrls
 
 #> Cubist ----
 
+#tuning parameter values
 train_grid <- expand.grid(committees = c(1, 2, 3, 5, 10, 15, 20, 50),
-                          neighbors = 0)
+                          neighbors = c(0, 1, 2, 5))
 
-#train
-cubist <- train(sev ~ .,
-                data = data,
-                preProcess = c("center", "scale"),
-                method = "cubist",
-                tuneGrid = train_grid,
-                trControl = ctrl,
-                importance = TRUE)
+cubist <- caret::train(sev ~ .,
+                       data = data,
+                       preProcess = c("center", "scale"),
+                       method = "cubist",
+                       tuneGrid = train_grid,
+                       trControl = ctrl,
+                       importance = TRUE)
 
 plot(cubist)
 
@@ -113,16 +112,14 @@ saveRDS(cubist, "O:/Projects/KP0011/3/Analysis/regression/Models_dyn/cubist_limc
 
 #> rf-ranger ----
 
-#grid of mtry values to test
+#tuning parameter values
 mtry <- c(1, 2, 5, 9, 14, 20, 30, 45, 70, 100, 200)
 min_nodes <- c(1, 2, 5, 10)
 
-#specify model tuning parameters
 tune_grid <- expand.grid(mtry = mtry,
                          splitrule = "variance", #default
                          min.node.size = min_nodes)
 
-#random forest
 rf_ranger <- caret::train(sev ~ .,
                           data = data,
                           preProc = c("center", "scale"),
@@ -139,6 +136,7 @@ saveRDS(rf_ranger, "O:/Projects/KP0011/3/Analysis/regression/Models_dyn/rf_limct
 
 #> Ridge ----
 
+#tuning parameter values
 ridgeGrid <- data.frame(lambda = seq(0, .15, length = 15))
 
 ridge <- caret::train(sev ~ .,
@@ -170,14 +168,16 @@ dis_sev <- readRDS("O:/Projects/KP0011/3/RefData/dis_sev.rds")
 dir <- "O:/Projects/KP0011/3/Analysis/regression/Models_dyn/"
 setwd(dir)
 
+#load models
 mod_names <- as.list(list.files(pattern = "ctrls"))
 mod_names_adj <- as.list(list.files(pattern = "allctrls"))
-
 mods <- lapply(mod_names, readRDS)
 mods_adj <- lapply(mod_names_adj, readRDS)
 
+#plot performance profiles
 lapply(mods, plot)
 
+#create predicted vs. observed plots
 predobsplots <- lapply(mods, plot_predobs, adjust = FALSE, spcdat = spcdat)
 
 pdf("O:/Projects/KP0011/3/Figures/predobs_adj_DYN.pdf", 8.5, 8.5)
@@ -194,7 +194,6 @@ for (i in seq(1, length(predobsplots), 3)) {
 dev.off()
 
 #====================================================================================== -
-
 
 #Model generalization ----
 
@@ -348,7 +347,7 @@ for(i in 1:length(index)){
     #except for first iteration, where the full data set ist used
     if(exists("newtrain")) {train = newtrain}
     
-    #Verbose
+    #Verbose iter
     print(paste("==> subset size = ", length(train)-1, sep = ""))
     
     #adjust mtry parameter to decreasing predictor set
@@ -358,8 +357,8 @@ for(i in 1:length(index)){
       mtry <- mtry[-which(mtry >= 250)]
     }
     
-    min.node.size <- 3
-    
+    min.node.size <- c(1, 2, 5, 10)
+
     #specify model tuning parameters
     tune_grid <- expand.grid(mtry = mtry,
                              splitrule = "variance",
@@ -397,12 +396,6 @@ for(i in 1:length(index)){
     
     #get train performance
     train_perf[j] <- caret::getTrainPerf(rf_ranger)$TrainRMSE
-    
-    # #calculate adjusted train performance
-    # train_perf_adj[j] <- sqrt(sum((predobs$mean_pred-predobs$obs)^2)/nrow(predobs))
-    
-    # #calculate test performance
-    # test_perf[j] <- rmse(test$sev, predict(rf_ranger, test)) 
     
     #number of preds used
     npred[[j]] <- length(train)-1
@@ -521,7 +514,7 @@ for(i in 1:length(index)){
     
     #define tuning parameter grid
     train_grid <-   train_grid <- expand.grid(committees = c(1, 2, 3, 4, 5, 7, 10),
-                                              neighbors = 0)
+                                              neighbors = c(0, 1, 2, 5, ))
     
     #define inner resampling procedure
     ctrl <- caret::trainControl(method = "repeatedcv",
