@@ -80,10 +80,7 @@ perform_rfe <- function(response, base_learner = "ranger",
                           method = base_learner,
                           tuneGrid = tune_grid,
                           trControl = ctrl,
-                          num.trees = 1000,
-                          importance = "permutation"
-                          # ,...
-                          )
+                          ...)
       
       #extract predobs of each cv fold
       predobs_cv <- plyr::match_df(fit$pred, fit$bestTune, on = names(fit$bestTune))
